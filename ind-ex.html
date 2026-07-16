@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Counter — Order &amp; Pay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --chalk-green: #1F3229;
+    --chalk-green-2: #16241C;
+    --turmeric: #D9A441;
+    --turmeric-deep: #B8842A;
+    --paper: #F6F1E4;
+    --paper-2: #ECE3CC;
+    --ink: #232420;
+    --steel: #5C6B63;
+    --chilli: #B5432E;
+    --green-ok: #3E7D53;
+    --line: #D8CBA8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  :focus-visible { outline: 3px solid var(--turmeric); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 14px 18px;
+    background: var(--chalk-green-2);
+    color: var(--paper);
+    font-family: 'Teko', sans-serif;
+    font-size: 1.3rem;
+    letter-spacing: 0.5px;
+    position: sticky; top:0; z-index:20;
+  }
+  .brand { display:flex; align-items:center; gap:8px; }
+  .link-btn {
+    background:none; border:none; color: var(--turmeric); font-family:'IBM Plex Sans',sans-serif;
+    font-size: 0.95rem; font-weight:600; cursor:pointer; padding: 6px 4px;
+  }
+
+  #app { max-width: 480px; margin: 0 auto; padding: 0 0 24px; min-height: calc(100vh - 56px); }
+
+  /* Menu board */
+  .board { background: var(--chalk-green); color: var(--paper); padding: 20px 18px 110px; }
+  .board-title { font-family:'Teko',sans-serif; font-size: 2.4rem; margin:0; letter-spacing:1px; color: var(--turmeric); }
+  .board-sub { margin: 2px 0 18px; color: var(--paper-2); font-size:0.9rem; }
+  .menu-list { display:flex; flex-direction:column; gap:10px; }
+  .menu-row {
+    display:flex; align-items:center; justify-content:space-between;
+    background: rgba(246,241,228,0.06);
+    border: 1px solid rgba(246,241,228,0.16);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .menu-row.is-sold-out { opacity: 0.5; }
+  .menu-row-photo-name { display:flex; align-items:center; gap:10px; }
+  .item-photo { width:40px; height:40px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(246,241,228,0.25); }
+  .item-photo-placeholder {
+    width:40px; height:40px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(246,241,228,0.08); border:1px dashed rgba(246,241,228,0.3); font-size:1rem;
+  }
+  .menu-name { font-weight:600; font-size:1.05rem; }
+  .menu-price { font-family:'IBM Plex Mono',monospace; color: var(--turmeric); font-size:0.95rem; margin-top:2px; }
+  .menu-row-side { display:flex; align-items:center; gap:10px; }
+  .badge { font-size:0.78rem; padding:3px 8px; border-radius:20px; font-weight:600; white-space:nowrap; }
+  .badge-stock { background: rgba(217,164,65,0.18); color: var(--turmeric); }
+  .badge-low { background: rgba(181,67,46,0.18); color: var(--chilli); }
+  .badge-out { background: rgba(181,67,46,0.25); color:#E7998A; }
+
+  .stepper { display:flex; align-items:center; gap:10px; }
+  .step-btn {
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--turmeric);
+    background:transparent; color: var(--turmeric); font-size:1.1rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step-btn:disabled { opacity:0.3; cursor:not-allowed; }
+  .step-val { min-width:18px; text-align:center; font-family:'IBM Plex Mono',monospace; }
+
+  .cart-bar {
+    position: fixed; bottom:0; left:0; right:0;
+    max-width:480px; margin:0 auto;
+    background: var(--paper); border-top: 2px solid var(--ink);
+    padding: 12px 16px 16px; display:flex; flex-direction:column; gap:8px;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.25);
+  }
+  .cart-info { display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  .pay-toggle { display:flex; gap:8px; }
+  .toggle-btn {
+    flex:1; padding:8px; border-radius:8px; border:1.5px solid var(--line);
+    background: var(--paper-2); color: var(--steel); font-weight:600; cursor:pointer;
+  }
+  .toggle-btn.active { background: var(--chalk-green); color: var(--turmeric); border-color: var(--chalk-green); }
+
+  .btn-primary {
+    display:block; text-align:center; text-decoration:none;
+    background: var(--turmeric); color: var(--chalk-green-2);
+    font-weight:700; padding: 13px; border-radius:10px; border:none; cursor:pointer;
+    font-size:1rem;
+  }
+  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn-block { width:100%; }
+  .btn-secondary { background: var(--paper-2); color: var(--ink); border:1px solid var(--line); padding:12px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .btn-bad { background: var(--chilli); color: #fff; border:none; padding:12px; border-radius:10px; cursor:pointer; font-weight:700; }
+  .btn-ok { background: var(--green-ok); color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+
+  .form-error { color: var(--chilli); font-size:0.9rem; margin:4px 0 0; }
+  .empty { color: var(--steel); font-style:italic; padding: 20px 0; text-align:center; }
+  .muted { color: var(--steel); }
+  .small { font-size:0.85rem; }
+
+  /* Token / receipt view */
+  .token-wrap { padding: 24px 18px; display:flex; flex-direction:column; gap:16px; align-items:center; }
+  .token-stub {
+    background: var(--paper); border:1.5px solid var(--ink); border-radius:14px;
+    width:100%; max-width:360px; padding: 22px 20px 18px; position:relative;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  .token-num-label { font-family:'IBM Plex Mono',monospace; letter-spacing:3px; font-size:0.75rem; color: var(--steel); text-align:center; }
+  .token-num { font-family:'Teko',sans-serif; font-size:5rem; line-height:1; text-align:center; color: var(--chalk-green); font-weight:700; }
+  .tear { border-top: 2px dashed var(--line); margin: 14px 0; }
+  .receipt-row { display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:0.92rem; padding:3px 0; }
+  .receipt-total { border-top:1px solid var(--line); margin-top:6px; padding-top:8px; font-weight:700; }
+  .status-pill { margin-top:14px; text-align:center; padding:8px; border-radius:8px; font-weight:600; font-size:0.9rem; }
+  .status-pending { background: rgba(217,164,65,0.18); color: var(--turmeric-deep); }
+  .status-ok { background: rgba(62,125,83,0.15); color: var(--green-ok); }
+  .status-bad { background: rgba(181,67,46,0.15); color: var(--chilli); }
+  .pay-instruction { text-align:center; }
+
+  /* Closed view */
+  .closed-view { background: var(--chalk-green); color: var(--paper); min-height: calc(100vh - 56px); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 40px 24px; }
+  .closed-emoji { font-size:3rem; margin-bottom:10px; }
+  .closed-title { font-family:'Teko',sans-serif; font-size:2rem; color: var(--turmeric); margin:0 0 8px; }
+  .closed-sub { color: var(--paper-2); }
+
+  /* PIN screen */
+  .pin-screen { padding: 60px 24px; display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center; }
+  .pin-input { font-family:'IBM Plex Mono',monospace; font-size:1.6rem; letter-spacing:8px; text-align:center; padding:12px; width:180px; border-radius:10px; border:1.5px solid var(--line); }
+
+  /* Seller console */
+  .seller-wrap { padding: 16px 16px 40px; }
+  .seller-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .tabs { display:flex; gap:6px; overflow-x:auto; margin-bottom:14px; }
+  .tab-btn { flex:0 0 auto; padding:8px 12px; border-radius:20px; border:1.5px solid var(--line); background: var(--paper-2); color: var(--steel); font-weight:600; cursor:pointer; font-size:0.88rem; }
+  .tab-btn.active { background: var(--chalk-green); color: var(--turmeric); border-color: var(--chalk-green); }
+
+  .store-toggle { width:100%; padding:12px; border-radius:10px; font-weight:700; margin-bottom:14px; cursor:pointer; font-size:0.95rem; }
+  .store-toggle.is-open { background: rgba(62,125,83,0.15); color: var(--green-ok); border:1.5px solid var(--green-ok); }
+  .store-toggle.is-closed { background: rgba(181,67,46,0.15); color: var(--chilli); border:1.5px solid var(--chilli); }
+
+  .low-stock-banner {
+    background: rgba(181,67,46,0.12); border:1.5px solid var(--chilli); color: var(--chilli);
+    border-radius:10px; padding:10px 12px; margin-bottom:14px; font-size:0.88rem; font-weight:600;
+  }
+
+  .walkin-toggle-row { margin-bottom:8px; }
+  .walkin-panel { background: var(--paper-2); border-radius:10px; padding:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:8px; }
+  .walkin-row { display:flex; justify-content:space-between; align-items:center; }
+  .walkin-name { font-size:0.92rem; }
+
+  .queue-cols { display:flex; flex-direction:column; gap:20px; }
+  @media (min-width: 720px) { .queue-cols { flex-direction:row; } .queue-col { flex:1; } }
+  .queue-col h3 { font-family:'Teko',sans-serif; font-size:1.3rem; letter-spacing:0.5px; display:flex; align-items:center; gap:8px; color: var(--chalk-green); margin:0 0 10px; }
+  .count-chip { background: var(--chalk-green); color: var(--turmeric); font-family:'IBM Plex Mono',monospace; font-size:0.75rem; padding:1px 8px; border-radius:10px; }
+
+  .order-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+  .order-card-top { display:flex; gap:8px; align-items:center; font-size:0.82rem; color: var(--steel); margin-bottom:4px; }
+  .order-num-chip { font-family:'IBM Plex Mono',monospace; font-weight:700; color: var(--ink); background: var(--paper-2); padding:1px 7px; border-radius:6px; }
+  .order-items { font-size:0.92rem; margin-bottom:6px; }
+  .order-card-bottom { display:flex; justify-content:space-between; align-items:center; }
+  .order-total { font-family:'IBM Plex Mono',monospace; font-weight:700; }
+  .order-actions { display:flex; gap:6px; }
+
+  .setup-block { margin-bottom:22px; }
+  .setup-block h3 { font-family:'Teko',sans-serif; font-size:1.3rem; color: var(--chalk-green); margin-bottom:8px; }
+  .setup-row-card { border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; background:#fff; }
+  .setup-row-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .setup-row-top .name { flex:1; }
+  .setup-row-bottom { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .photo-upload {
+    width:44px; height:44px; border-radius:8px; flex-shrink:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background: var(--paper-2); border:1.5px dashed var(--line); position:relative;
+  }
+  .photo-upload img { width:100%; height:100%; object-fit:cover; }
+  .photo-upload input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .photo-upload-icon { font-size:1.1rem; color: var(--steel); }
+  .photo-upload-spinner {
+    width:18px; height:18px; border-radius:50%;
+    border:2px solid rgba(92,107,99,0.35); border-top-color: var(--steel);
+    animation: photo-spin 0.7s linear infinite;
+  }
+  @keyframes photo-spin { to { transform: rotate(360deg); } }
+  .setup-input { padding:8px; border-radius:8px; border:1.5px solid var(--line); font-family:'IBM Plex Sans',sans-serif; font-size:0.9rem; background:#fff; width:100%; }
+  .setup-input.full { width:100%; margin-bottom:10px; }
+  .setup-input.low-stock-input { border-color: var(--chilli); }
+  .setup-label { display:block; font-size:0.85rem; color: var(--steel); margin-bottom:4px; }
+  .icon-btn { background:none; border:none; color: var(--chilli); font-size:1.1rem; cursor:pointer; }
+
+  .danger-zone { margin-top:26px; padding:14px; border:1.5px dashed var(--chilli); border-radius:10px; }
+  .danger-zone h3 { color: var(--chilli); font-family:'Teko',sans-serif; font-size:1.2rem; margin:0 0 4px; }
+
+  .stat-card-lg { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 8px; text-align:center; margin-bottom:10px; }
+  .stat-num-lg { font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:1.8rem; color: var(--chalk-green); }
+  .stat-grid-2 { display:grid; grid-template-columns: repeat(2,1fr); gap:10px; margin-bottom:10px; }
+  .stat-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 8px; text-align:center; }
+  .stat-num { font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:1.3rem; color: var(--chalk-green); }
+  .stat-label { font-size:0.75rem; color: var(--steel); margin-top:2px; }
+  .tally-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:0.92rem; }
+
+  .history-card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .history-top { display:flex; justify-content:space-between; margin-bottom:4px; }
+  .history-stats { display:flex; gap:12px; font-size:0.85rem; color: var(--steel); flex-wrap:wrap; }
+
+  .modal-backdrop { position:fixed; inset:0; background:rgba(22,36,28,0.55); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal-card { background: var(--paper); border-radius:14px; padding:20px; max-width:360px; width:100%; }
+  .modal-actions { display:flex; gap:10px; margin-top:16px; }
+  .modal-actions button { flex:1; }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🍴 <span id="dayLabel">Canteen</span></div>
+    <button id="counterLink" class="link-btn" data-action="goto-counter">Counter →</button>
+  </header>
+  <main id="app"></main>
+  <div id="modalRoot"></div>
+
+<script>
+/* ---------------- Constants ---------------- */
+const MENU_KEY = 'canteen:menu';
+const ORDERS_KEY = 'canteen:orders';
+const CONFIG_KEY = 'canteen:config';
+const ARCHIVE_KEY = 'canteen:archive';
+const PHOTO_PREFIX = 'canteen:photo:';
+const LOW_STOCK_THRESHOLD = 10;
+
+const DEFAULT_MENU = [
+  { id: 'tea',    name: 'Tea',           price: 13, stock: 25, initialStock: 25 },
+  { id: 'vpuff',  name: 'Veg Puff',      price: 20, stock: 25, initialStock: 25 },
+  { id: 'cpuff',  name: 'Chicken Puff',  price: 25, stock: 25, initialStock: 25 },
+  { id: 'cake',   name: 'Cake',          price: 15, stock: 25, initialStock: 25 },
+  { id: 'mojito', name: 'Mojito',        price: 15, stock: 25, initialStock: 25 },
+];
+const DEFAULT_CONFIG = { payeeName: 'Campus Canteen', pin: '1234', dayLabel: 'Today', storeOpen: true };
+
+/* ---------------- Storage helpers ---------------- */
+async function storeGet(key) {
+  try {
+    const r = await window.storage.get(key, true);
+    return r ? JSON.parse(r.value) : null;
+  } catch (e) { return null; }
+}
+async function storeSet(key, value) {
+  try { await window.storage.set(key, JSON.stringify(value), true); return true; }
+  catch (e) { console.error('storage set failed', key, e); return false; }
+}
+
+/* ---------------- App state ---------------- */
+const state = {
+  menu: [], orders: [], config: { ...DEFAULT_CONFIG }, archive: [],
+  cart: {}, payMethod: 'upi',
+  view: 'menu', sellerTab: 'queue', sellerAuthed: false,
+  activeOrderNum: null, walkinOpen: false, walkinCart: {},
+  photos: {}, photosLoading: {}, photoUploading: {},
+  pinError: '', formError: '', modal: null,
+};
+
+/* ---------------- Helpers ---------------- */
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function formatINR(n) {
+  n = Number(n) || 0;
+  return n % 1 === 0 ? String(n) : n.toFixed(2);
+}
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  return Math.floor(s / 60) + 'm ago';
+}
+function cartTotalValue(cart) {
+  return Object.entries(cart).reduce((sum, [id, qty]) => {
+    const item = state.menu.find(i => i.id === id);
+    return sum + (item ? item.price * qty : 0);
+  }, 0);
+}
+function computeRevenueByMethod() {
+  const paid = state.orders.filter(o => o.status==='confirmed' || o.status==='served');
+  const cash = paid.filter(o=>o.method==='cash').reduce((s,o)=>s+o.total,0);
+  const online = paid.filter(o=>o.method==='upi').reduce((s,o)=>s+o.total,0);
+  return { cash, online, total: cash+online };
+}
+function computeItemsSold() {
+  const tally = {};
+  state.orders.filter(o => o.status==='confirmed' || o.status==='served').forEach(o => {
+    o.items.forEach(i => { tally[i.name] = (tally[i.name]||0) + i.qty; });
+  });
+  return tally;
+}
+function getLowStockItems() {
+  return state.menu.filter(i => i.stock > 0 && i.stock < LOW_STOCK_THRESHOLD);
+}
+
+/* ---------------- Photos ---------------- */
+function ensurePhotoLoaded(id) {
+  if (state.photos[id] !== undefined || state.photosLoading[id]) return;
+  state.photosLoading[id] = true;
+  storeGet(PHOTO_PREFIX + id).then(val => {
+    state.photos[id] = val || null;
+    state.photosLoading[id] = false;
+    render();
+  });
+}
+function kickPhotoFetches() {
+  state.menu.forEach(item => ensurePhotoLoaded(item.id));
+}
+function getPhotoOrientation(file) {
+  // Reads the EXIF orientation tag from a JPEG so phone-camera photos
+  // (often saved "sideways" with a rotation flag rather than rotated
+  // pixels) can be corrected before they show up on the menu. Only a
+  // small chunk of the file is read, so this stays fast even for large
+  // camera photos.
+  return new Promise((resolve) => {
+    if (!file || file.type !== 'image/jpeg') { resolve(1); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const view = new DataView(e.target.result);
+        if (view.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
+        const length = view.byteLength;
+        let offset = 2;
+        while (offset < length) {
+          const marker = view.getUint16(offset, false);
+          offset += 2;
+          if (marker === 0xFFE1) {
+            if (view.getUint32(offset += 2, false) !== 0x45786966) { resolve(1); return; }
+            const little = view.getUint16(offset += 6, false) === 0x4949;
+            offset += view.getUint32(offset + 4, little);
+            const tags = view.getUint16(offset, little);
+            offset += 2;
+            for (let i = 0; i < tags; i++) {
+              if (view.getUint16(offset + (i * 12), little) === 0x0112) {
+                resolve(view.getUint16(offset + (i * 12) + 8, little));
+                return;
+              }
+            }
+            resolve(1); return;
+          } else if ((marker & 0xFF00) !== 0xFF00) {
+            break;
+          } else {
+            offset += view.getUint16(offset, false);
+          }
+        }
+        resolve(1);
+      } catch (err) { resolve(1); }
+    };
+    reader.onerror = () => resolve(1);
+    reader.readAsArrayBuffer(file.slice(0, 131072));
+  });
+}
+function drawOriented(img, orientation) {
+  // Draws the image onto a full-size canvas rotated/flipped upright,
+  // correcting sideways/upside-down photos from phone cameras.
+  const width = img.width, height = img.height;
+  const swapped = orientation > 4 && orientation < 9;
+  const canvas = document.createElement('canvas');
+  canvas.width = swapped ? height : width;
+  canvas.height = swapped ? width : height;
+  const ctx = canvas.getContext('2d');
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
+    case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
+    case 4: ctx.transform(1, 0, 0, -1, 0, heigh
