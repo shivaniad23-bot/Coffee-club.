@@ -1,13 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Counter — Order &amp; Pay</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<style>
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter — Order &amp; Pay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
   :root {
     --chalk-green: #1F3229;
     --chalk-green-2: #16241C;
@@ -195,12 +195,6 @@
   .photo-upload img { width:100%; height:100%; object-fit:cover; }
   .photo-upload input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
   .photo-upload-icon { font-size:1.1rem; color: var(--steel); }
-  .photo-upload-spinner {
-    width:18px; height:18px; border-radius:50%;
-    border:2px solid rgba(92,107,99,0.35); border-top-color: var(--steel);
-    animation: photo-spin 0.7s linear infinite;
-  }
-  @keyframes photo-spin { to { transform: rotate(360deg); } }
   .setup-input { padding:8px; border-radius:8px; border:1.5px solid var(--line); font-family:'IBM Plex Sans',sans-serif; font-size:0.9rem; background:#fff; width:100%; }
   .setup-input.full { width:100%; margin-bottom:10px; }
   .setup-input.low-stock-input { border-color: var(--chilli); }
@@ -227,16 +221,17 @@
   .modal-actions { display:flex; gap:10px; margin-top:16px; }
   .modal-actions button { flex:1; }
 </style>
-</head>
-<body>
+ </head>
+ <body>
   <header class="topbar">
-    <div class="brand">🍴 <span id="dayLabel">Canteen</span></div>
-    <button id="counterLink" class="link-btn" data-action="goto-counter">Counter →</button>
+   <div class="brand">
+    🍴 <span id="dayLabel">Canteen</span>
+   </div>
+   <button id="counterLink" class="link-btn" data-action="goto-counter">Counter →</button>
   </header>
   <main id="app"></main>
   <div id="modalRoot"></div>
-
-<script>
+  <script>
 /* ---------------- Constants ---------------- */
 const MENU_KEY = 'canteen:menu';
 const ORDERS_KEY = 'canteen:orders';
@@ -272,7 +267,7 @@ const state = {
   cart: {}, payMethod: 'upi',
   view: 'menu', sellerTab: 'queue', sellerAuthed: false,
   activeOrderNum: null, walkinOpen: false, walkinCart: {},
-  photos: {}, photosLoading: {}, photoUploading: {},
+  photos: {}, photosLoading: {},
   pinError: '', formError: '', modal: null,
 };
 
@@ -325,60 +320,633 @@ function ensurePhotoLoaded(id) {
 function kickPhotoFetches() {
   state.menu.forEach(item => ensurePhotoLoaded(item.id));
 }
-function getPhotoOrientation(file) {
-  // Reads the EXIF orientation tag from a JPEG so phone-camera photos
-  // (often saved "sideways" with a rotation flag rather than rotated
-  // pixels) can be corrected before they show up on the menu. Only a
-  // small chunk of the file is read, so this stays fast even for large
-  // camera photos.
-  return new Promise((resolve) => {
-    if (!file || file.type !== 'image/jpeg') { resolve(1); return; }
+function resizeImageFile(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read failed'));
     reader.onload = (e) => {
-      try {
-        const view = new DataView(e.target.result);
-        if (view.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
-        const length = view.byteLength;
-        let offset = 2;
-        while (offset < length) {
-          const marker = view.getUint16(offset, false);
-          offset += 2;
-          if (marker === 0xFFE1) {
-            if (view.getUint32(offset += 2, false) !== 0x45786966) { resolve(1); return; }
-            const little = view.getUint16(offset += 6, false) === 0x4949;
-            offset += view.getUint32(offset + 4, little);
-            const tags = view.getUint16(offset, little);
-            offset += 2;
-            for (let i = 0; i < tags; i++) {
-              if (view.getUint16(offset + (i * 12), little) === 0x0112) {
-                resolve(view.getUint16(offset + (i * 12) + 8, little));
-                return;
-              }
-            }
-            resolve(1); return;
-          } else if ((marker & 0xFF00) !== 0xFF00) {
-            break;
-          } else {
-            offset += view.getUint16(offset, false);
-          }
-        }
-        resolve(1);
-      } catch (err) { resolve(1); }
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width, height = img.height;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height >= width && height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('decode failed'));
+      img.src = e.target.result;
     };
-    reader.onerror = () => resolve(1);
-    reader.readAsArrayBuffer(file.slice(0, 131072));
+    reader.readAsDataURL(file);
   });
 }
-function drawOriented(img, orientation) {
-  // Draws the image onto a full-size canvas rotated/flipped upright,
-  // correcting sideways/upside-down photos from phone cameras.
-  const width = img.width, height = img.height;
-  const swapped = orientation > 4 && orientation < 9;
-  const canvas = document.createElement('canvas');
-  canvas.width = swapped ? height : width;
-  canvas.height = swapped ? width : height;
-  const ctx = canvas.getContext('2d');
-  switch (orientation) {
-    case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
-    case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
-    case 4: ctx.transform(1, 0, 0, -1, 0, heigh
+async function handlePhotoUpload(id, file) {
+  try {
+    const dataUrl = await resizeImageFile(file, 320, 0.6);
+    if (dataUrl.length > 1200000) {
+      state.formError = 'That photo is too large — try a different one.';
+      render();
+      return;
+    }
+    const ok = await storeSet(PHOTO_PREFIX + id, dataUrl);
+    if (ok) { state.photos[id] = dataUrl; state.formError = ''; }
+    else { state.formError = 'Photo upload failed — try again.'; }
+  } catch (err) {
+    state.formError = 'Could not read that photo — try again.';
+  }
+  render();
+}
+
+/* ---------------- Init & polling ---------------- */
+async function init() {
+  let [menu, orders, config, archive] = await Promise.all([
+    storeGet(MENU_KEY), storeGet(ORDERS_KEY), storeGet(CONFIG_KEY), storeGet(ARCHIVE_KEY)
+  ]);
+  if (!menu) { menu = DEFAULT_MENU; await storeSet(MENU_KEY, menu); }
+  if (!orders) { orders = []; await storeSet(ORDERS_KEY, orders); }
+  if (!config) {
+    config = { ...DEFAULT_CONFIG, dayLabel: new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' }) };
+    await storeSet(CONFIG_KEY, config);
+  } else if (config.storeOpen === undefined) {
+    config.storeOpen = true;
+  }
+  if (!archive) { archive = []; await storeSet(ARCHIVE_KEY, archive); }
+  state.menu = menu; state.orders = orders; state.config = config; state.archive = archive;
+  render();
+  schedulePoll();
+}
+async function poll() {
+  if (document.hidden) return;
+  try {
+    if (state.view === 'menu') {
+      const config = await storeGet(CONFIG_KEY);
+      if (config) state.config = config;
+      render();
+    } else if (state.view === 'seller' && state.sellerTab === 'queue' && !state.walkinOpen) {
+      const [orders, menu] = await Promise.all([storeGet(ORDERS_KEY), storeGet(MENU_KEY)]);
+      if (orders) state.orders = orders;
+      if (menu) state.menu = menu;
+      render();
+    } else if (state.view === 'token') {
+      const orders = await storeGet(ORDERS_KEY);
+      if (orders) state.orders = orders;
+      render();
+    }
+  } catch (e) { /* stay on last good state */ }
+}
+function schedulePoll() {
+  const delay = 3500 + Math.random() * 1500;
+  setTimeout(async () => { await poll(); schedulePoll(); }, delay);
+}
+init();
+
+/* ---------------- Cart actions (buyer) ---------------- */
+function incCart(id) {
+  const item = state.menu.find(i=>i.id===id);
+  const cur = state.cart[id] || 0;
+  if (item && cur < item.stock) state.cart[id] = cur + 1;
+  render();
+}
+function decCart(id) {
+  const cur = state.cart[id] || 0;
+  if (cur > 0) state.cart[id] = cur - 1;
+  if (state.cart[id] === 0) delete state.cart[id];
+  render();
+}
+function walkinInc(id) {
+  const item = state.menu.find(i=>i.id===id);
+  const cur = state.walkinCart[id] || 0;
+  if (item && cur < item.stock) state.walkinCart[id] = cur + 1;
+  render();
+}
+function walkinDec(id) {
+  const cur = state.walkinCart[id] || 0;
+  if (cur > 0) state.walkinCart[id] = cur - 1;
+  if (state.walkinCart[id] === 0) delete state.walkinCart[id];
+  render();
+}
+
+/* ---------------- Order placing / lifecycle ---------------- */
+async function placeOrder() {
+  const cartEntries = Object.entries(state.cart).filter(([,q]) => q>0);
+  if (!cartEntries.length) return;
+  state.formError = '';
+
+  const freshConfig = (await storeGet(CONFIG_KEY)) || state.config;
+  state.config = freshConfig;
+  if (!freshConfig.storeOpen) { render(); return; }
+
+  const freshMenu = (await storeGet(MENU_KEY)) || state.menu;
+  for (const [id, qty] of cartEntries) {
+    const item = freshMenu.find(i => i.id === id);
+    if (!item || item.stock < qty) {
+      state.formError = (item ? item.name : 'An item') + ' just ran out — please adjust your order.';
+      state.menu = freshMenu;
+      render();
+      return;
+    }
+  }
+  const updatedMenu = freshMenu.map(item => {
+    const entry = cartEntries.find(([id]) => id === item.id);
+    return entry ? { ...item, stock: item.stock - entry[1] } : item;
+  });
+  const freshOrders = (await storeGet(ORDERS_KEY)) || state.orders;
+  const num = freshOrders.length + 1;
+  const items = cartEntries.map(([id, qty]) => {
+    const item = updatedMenu.find(i => i.id === id);
+    return { id, name: item.name, price: item.price, qty };
+  });
+  const total = items.reduce((s,i)=>s+i.price*i.qty, 0);
+  const order = { num, items, total, method: state.payMethod, status: 'pending', ts: Date.now(), confirmedTs: null };
+  freshOrders.push(order);
+
+  await storeSet(MENU_KEY, updatedMenu);
+  await storeSet(ORDERS_KEY, freshOrders);
+
+  state.menu = updatedMenu; state.orders = freshOrders;
+  state.cart = {}; state.activeOrderNum = num; state.view = 'token';
+  render();
+}
+async function confirmOrder(num) {
+  const orders = (await storeGet(ORDERS_KEY)) || state.orders;
+  const o = orders.find(x=>x.num===num);
+  if (o && o.status==='pending') { o.status='confirmed'; o.confirmedTs = Date.now(); }
+  await storeSet(ORDERS_KEY, orders);
+  state.orders = orders;
+  render();
+}
+async function cancelOrderAction(num) {
+  const orders = (await storeGet(ORDERS_KEY)) || state.orders;
+  const o = orders.find(x=>x.num===num);
+  if (!o || o.status!=='pending') return;
+  o.status = 'cancelled';
+  const menu = (await storeGet(MENU_KEY)) || state.menu;
+  o.items.forEach(line => {
+    const item = menu.find(m=>m.id===line.id);
+    if (item) item.stock += line.qty;
+  });
+  await storeSet(ORDERS_KEY, orders);
+  await storeSet(MENU_KEY, menu);
+  state.orders = orders; state.menu = menu;
+  render();
+}
+async function markServed(num) {
+  const orders = (await storeGet(ORDERS_KEY)) || state.orders;
+  const o = orders.find(x=>x.num===num);
+  if (o && o.status==='confirmed') o.status='served';
+  await storeSet(ORDERS_KEY, orders);
+  state.orders = orders;
+  render();
+}
+async function addWalkin() {
+  const entries = Object.entries(state.walkinCart).filter(([,q])=>q>0);
+  if (!entries.length) return;
+  const freshMenu = (await storeGet(MENU_KEY)) || state.menu;
+  for (const [id,qty] of entries) {
+    const item = freshMenu.find(i=>i.id===id);
+    if (!item || item.stock < qty) { state.formError = 'Stock changed — please recheck.'; render(); return; }
+  }
+  const updatedMenu = freshMenu.map(item => {
+    const e = entries.find(([id])=>id===item.id);
+    return e ? {...item, stock: item.stock - e[1]} : item;
+  });
+  const freshOrders = (await storeGet(ORDERS_KEY)) || state.orders;
+  const num = freshOrders.length + 1;
+  const items = entries.map(([id,qty]) => { const it = updatedMenu.find(i=>i.id===id); return {id, name: it.name, price: it.price, qty}; });
+  const total = items.reduce((s,i)=>s+i.price*i.qty,0);
+  const order = { num, items, total, method:'cash', status:'confirmed', ts: Date.now(), confirmedTs: Date.now() };
+  freshOrders.push(order);
+  await storeSet(MENU_KEY, updatedMenu);
+  await storeSet(ORDERS_KEY, freshOrders);
+  state.menu = updatedMenu; state.orders = freshOrders;
+  state.walkinCart = {}; state.walkinOpen = false; state.formError = '';
+  render();
+}
+
+/* ---------------- Day setup ---------------- */
+function addMenuRow() {
+  state.menu = [...state.menu, { id: 'item-'+Date.now(), name: '', price: 0, stock: 0, initialStock: 0 }];
+  render();
+}
+function removeMenuRow(id) {
+  state.menu = state.menu.filter(i=>i.id!==id);
+  render();
+}
+async function saveDaySetup() {
+  const rows = Array.from(document.querySelectorAll('.setup-row-card'));
+  const newMenu = [];
+  for (const row of rows) {
+    const id = row.dataset.rowId;
+    const name = row.querySelector('.name').value.trim();
+    const price = Number(row.querySelector('.price').value);
+    const stock = Number(row.querySelector('.stock').value);
+    if (!name) continue;
+    if (!(price >= 0) || !(stock >= 0)) { state.formError = 'Prices and stock must be zero or more.'; render(); return; }
+    newMenu.push({ id, name, price, stock, initialStock: stock });
+  }
+  if (!newMenu.length) { state.formError = 'Add at least one menu item.'; render(); return; }
+
+  const payeeVal = document.getElementById('setupPayee').value.trim();
+  const dayVal = document.getElementById('setupDay').value.trim();
+  const pinVal = document.getElementById('setupPin').value.trim();
+
+  const newConfig = {
+    ...state.config,
+    payeeName: payeeVal || 'Canteen',
+    dayLabel: dayVal || 'Today',
+    pin: pinVal ? pinVal : state.config.pin,
+  };
+
+  await storeSet(MENU_KEY, newMenu);
+  await storeSet(CONFIG_KEY, newConfig);
+  state.menu = newMenu; state.config = newConfig; state.formError = '';
+  render();
+}
+async function startNewDay() {
+  const rev = computeRevenueByMethod();
+  const snapshot = {
+    dayLabel: state.config.dayLabel,
+    closedAt: Date.now(),
+    revenue: rev.total, revenueCash: rev.cash, revenueOnline: rev.online,
+    itemsSold: computeItemsSold(),
+    orderCount: state.orders.filter(o=>o.status!=='cancelled').length,
+  };
+  const archive = (await storeGet(ARCHIVE_KEY)) || state.archive;
+  archive.push(snapshot);
+  const resetMenu = state.menu.map(item => ({ ...item, stock: item.initialStock }));
+
+  await storeSet(ARCHIVE_KEY, archive);
+  await storeSet(ORDERS_KEY, []);
+  await storeSet(MENU_KEY, resetMenu);
+
+  state.archive = archive; state.orders = []; state.menu = resetMenu;
+  state.modal = null; state.sellerTab = 'queue';
+  render();
+}
+async function toggleStoreOpen() {
+  const newConfig = { ...state.config, storeOpen: !state.config.storeOpen };
+  await storeSet(CONFIG_KEY, newConfig);
+  state.config = newConfig;
+  render();
+}
+async function submitPin() {
+  const el = document.getElementById('pinInput');
+  if (!el) return;
+  const val = el.value.trim();
+  if (val === state.config.pin) {
+    state.sellerAuthed = true; state.view = 'seller'; state.sellerTab='queue'; state.pinError=''; state.formError='';
+  } else {
+    state.pinError = 'Wrong PIN, try again.';
+  }
+  render();
+}
+
+/* ---------------- Templates ---------------- */
+function renderClosedView() {
+  const name = escapeHtml(state.config.payeeName || 'The counter');
+  return `
+    <section class="closed-view">
+      <div class="closed-emoji">☕</div>
+      <h1 class="closed-title">Sorry, ${name} is closed right now</h1>
+      <p class="closed-sub">Check back when we're open again!</p>
+    </section>`;
+}
+
+function renderMenuView() {
+  if (!state.config.storeOpen) return renderClosedView();
+
+  const items = state.menu.map(item => {
+    const qty = state.cart[item.id] || 0;
+    const soldOut = item.stock <= 0;
+    const low = !soldOut && item.stock < LOW_STOCK_THRESHOLD;
+    const maxed = qty >= item.stock;
+    const photo = state.photos[item.id];
+    return `
+      <div class="menu-row ${soldOut ? 'is-sold-out' : ''}">
+        <div class="menu-row-photo-name">
+          ${photo ? `<img class="item-photo" src="${photo}" alt="${escapeHtml(item.name)}" />` : `<span class="item-photo-placeholder">🍽️</span>`}
+          <div class="menu-row-main">
+            <div class="menu-name">${escapeHtml(item.name)}</div>
+            <div class="menu-price">₹${formatINR(item.price)}</div>
+          </div>
+        </div>
+        <div class="menu-row-side">
+          ${soldOut
+            ? `<span class="badge badge-out">Sold out</span>`
+            : `<span class="badge ${low ? 'badge-low' : 'badge-stock'}">${item.stock} left</span>
+               <div class="stepper">
+                 <button class="step-btn" data-action="cart-dec" data-id="${item.id}" ${qty===0?'disabled':''}>−</button>
+                 <span class="step-val">${qty}</span>
+                 <button class="step-btn" data-action="cart-inc" data-id="${item.id}" ${maxed?'disabled':''}>+</button>
+               </div>`}
+        </div>
+      </div>`;
+  }).join('');
+
+  const cartCount = Object.values(state.cart).reduce((a,b)=>a+b,0);
+  const cartTotal = cartTotalValue(state.cart);
+
+  return `
+    <section class="board">
+      <div class="board-head">
+        <h1 class="board-title">Today's Menu</h1>
+        <p class="board-sub">${escapeHtml(state.config.dayLabel || '')}</p>
+      </div>
+      <div class="menu-list">${items || '<p class="empty">Nothing on the menu yet — check with the counter.</p>'}</div>
+    </section>
+    ${cartCount > 0 ? `
+    <div class="cart-bar">
+      <div class="cart-info"><span>${cartCount} item${cartCount>1?'s':''}</span><span>₹${formatINR(cartTotal)}</span></div>
+      <div class="pay-toggle">
+        <button class="toggle-btn ${state.payMethod==='upi'?'active':''}" data-action="set-method" data-method="upi">GPay</button>
+        <button class="toggle-btn ${state.payMethod==='cash'?'active':''}" data-action="set-method" data-method="cash">Cash</button>
+      </div>
+      <button class="btn-primary btn-block" data-action="place-order">Place order →</button>
+      ${state.formError ? `<p class="form-error">${escapeHtml(state.formError)}</p>` : ''}
+    </div>` : ''}
+  `;
+}
+
+function renderTokenView() {
+  const order = state.orders.find(o => o.num === state.activeOrderNum);
+  if (!order) return `<section class="token-wrap"><p>Order not found.</p><button class="btn-primary" data-action="goto-menu">Back to menu</button></section>`;
+
+  const statusMeta = {
+    pending:   { label: 'Waiting to be confirmed at the counter', cls: 'pending' },
+    confirmed: { label: 'Confirmed — come collect your order!', cls: 'ok' },
+    served:    { label: 'Served. Enjoy!', cls: 'ok' },
+    cancelled: { label: 'Cancelled — please check at the counter', cls: 'bad' },
+  }[order.status];
+
+  const itemsHtml = order.items.map(i => `<div class="receipt-row"><span>${escapeHtml(i.name)} × ${i.qty}</span><span>₹${formatINR(i.price*i.qty)}</span></div>`).join('');
+
+  return `
+  <section class="token-wrap">
+    <div class="token-stub">
+      <div class="token-num-label">ORDER NO.</div>
+      <div class="token-num">${order.num}</div>
+      <div class="tear"></div>
+      <div class="receipt">
+        ${itemsHtml}
+        <div class="receipt-row receipt-total"><span>Total</span><span>₹${formatINR(order.total)}</span></div>
+      </div>
+      <div class="status-pill status-${statusMeta.cls}">${statusMeta.label}</div>
+    </div>
+    ${order.status === 'pending' ? `<p class="pay-instruction">Show <strong>Order No. ${order.num}</strong> at the counter and pay <strong>₹${formatINR(order.total)}</strong> by ${order.method==='upi'?'GPay':'cash'}.</p>` : ''}
+    <button class="link-btn" data-action="goto-menu">← Order something else</button>
+  </section>`;
+}
+
+function renderPinView() {
+  return `
+  <section class="pin-screen">
+    <h2>Counter login</h2>
+    <p class="muted">Enter today's PIN to manage orders and stock.</p>
+    <input id="pinInput" class="pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autofocus />
+    ${state.pinError ? `<p class="form-error">${escapeHtml(state.pinError)}</p>` : ''}
+    <button class="btn-primary btn-block" data-action="pin-submit">Enter</button>
+    <button class="link-btn" data-action="goto-menu">← Back to menu</button>
+  </section>`;
+}
+
+function renderQueueTab() {
+  const pending = state.orders.filter(o=>o.status==='pending').sort((a,b)=>a.ts-b.ts);
+  const confirmed = state.orders.filter(o=>o.status==='confirmed').sort((a,b)=>a.ts-b.ts);
+  const lowStock = getLowStockItems();
+
+  const orderCard = (o, actions) => `
+    <div class="order-card">
+      <div class="order-card-top">
+        <span class="order-num-chip">#${o.num}</span>
+        <span>${o.method === 'upi' ? '📱 GPay' : '💵 Cash'}</span>
+        <span>${timeAgo(o.ts)}</span>
+      </div>
+      <div class="order-items">${o.items.map(i=>`${escapeHtml(i.name)}×${i.qty}`).join(', ')}</div>
+      <div class="order-card-bottom">
+        <span class="order-total">₹${formatINR(o.total)}</span>
+        <div class="order-actions">${actions}</div>
+      </div>
+    </div>`;
+
+  const pendingHtml = pending.map(o => orderCard(o, `
+    <button class="btn-ok" data-action="order-confirm" data-id="${o.num}">✓ Confirm</button>
+    <button class="btn-bad" data-action="order-cancel" data-id="${o.num}">✕</button>
+  `)).join('') || `<p class="empty">No orders waiting.</p>`;
+
+  const confirmedHtml = confirmed.map(o => orderCard(o, `
+    <button class="btn-ok" data-action="order-serve" data-id="${o.num}">Served</button>
+  `)).join('') || `<p class="empty">Nothing ready yet.</p>`;
+
+  return `
+    <button class="store-toggle ${state.config.storeOpen?'is-open':'is-closed'}" data-action="toggle-store">
+      ${state.config.storeOpen ? '🟢 Store is OPEN — tap to close' : '🔴 Store is CLOSED — tap to reopen'}
+    </button>
+    ${lowStock.length ? `<div class="low-stock-banner">⚠️ Running low: ${lowStock.map(i=>`${escapeHtml(i.name)} (${i.stock})`).join(', ')}</div>` : ''}
+    <div class="walkin-toggle-row">
+      <button class="link-btn" data-action="toggle-walkin">${state.walkinOpen ? '▾' : '▸'} Add walk-in / cash order</button>
+    </div>
+    ${state.walkinOpen ? renderWalkinPanel() : ''}
+    <div class="queue-cols">
+      <div class="queue-col"><h3>Awaiting payment <span class="count-chip">${pending.length}</span></h3>${pendingHtml}</div>
+      <div class="queue-col"><h3>Ready to serve <span class="count-chip">${confirmed.length}</span></h3>${confirmedHtml}</div>
+    </div>
+  `;
+}
+
+function renderWalkinPanel() {
+  const rows = state.menu.map(item => {
+    const qty = state.walkinCart[item.id] || 0;
+    return `
+    <div class="walkin-row">
+      <span class="walkin-name">${escapeHtml(item.name)} <span class="muted">₹${formatINR(item.price)}</span></span>
+      <div class="stepper">
+        <button class="step-btn" data-action="walkin-dec" data-id="${item.id}" ${qty===0?'disabled':''}>−</button>
+        <span class="step-val">${qty}</span>
+        <button class="step-btn" data-action="walkin-inc" data-id="${item.id}" ${qty>=item.stock?'disabled':''}>+</button>
+      </div>
+    </div>`;
+  }).join('');
+  const total = cartTotalValue(state.walkinCart);
+  return `
+    <div class="walkin-panel">
+      ${rows}
+      ${state.formError ? `<p class="form-error">${escapeHtml(state.formError)}</p>` : ''}
+      <button class="btn-primary btn-block" data-action="walkin-add" ${total===0?'disabled':''}>Add paid order — ₹${formatINR(total)}</button>
+    </div>`;
+}
+
+function renderSetupTab() {
+  const rows = state.menu.map(item => {
+    const photo = state.photos[item.id];
+    const low = item.stock > 0 && item.stock < LOW_STOCK_THRESHOLD;
+    return `
+    <div class="setup-row-card" data-row-id="${item.id}">
+      <div class="setup-row-top">
+        <label class="photo-upload" title="Tap to upload a photo">
+          ${photo ? `<img src="${photo}" alt="" />` : `<span class="photo-upload-icon">📷</span>`}
+          <input type="file" accept="image/*" data-photo-id="${item.id}" />
+        </label>
+        <input class="setup-input name" value="${escapeHtml(item.name)}" placeholder="Item name" />
+        <button class="icon-btn" data-action="menu-remove-row" data-id="${item.id}" title="Remove">✕</button>
+      </div>
+      <div class="setup-row-bottom">
+        <input class="setup-input price" type="number" min="0" step="1" value="${item.price}" placeholder="Price ₹" />
+        <input class="setup-input stock ${low?'low-stock-input':''}" type="number" min="0" step="1" value="${item.stock}" placeholder="Stock" />
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="setup-block">
+      <h3>Menu, stock &amp; photos</h3>
+      <p class="muted small" style="margin-top:-4px;">Tap the square to add a photo of each item. You'll get a heads up here when something drops under 10 left.</p>
+      <div class="setup-rows">${rows}</div>
+      <button class="link-btn" data-action="menu-add-row">+ Add item</button>
+    </div>
+    <div class="setup-block">
+      <h3>Counter details</h3>
+      <label class="setup-label">Stall / team name (shown to buyers)</label>
+      <input id="setupPayee" class="setup-input full" value="${escapeHtml(state.config.payeeName)}" placeholder="e.g. Team 4 Canteen" />
+      <label class="setup-label">Day label</label>
+      <input id="setupDay" class="setup-input full" value="${escapeHtml(state.config.dayLabel)}" placeholder="e.g. Mon, 20 Jul" />
+      <label class="setup-label">Change PIN (leave blank to keep current)</label>
+      <input id="setupPin" class="setup-input full" type="password" inputmode="numeric" maxlength="6" placeholder="New PIN" />
+    </div>
+    <button class="btn-primary btn-block" data-action="day-setup-save">Save changes</button>
+    ${state.formError ? `<p class="form-error">${escapeHtml(state.formError)}</p>` : ''}
+    <div class="danger-zone">
+      <h3>Start a new day</h3>
+      <p class="muted small">Saves today's totals to History, resets stock to the numbers above, and clears the queue. Can't be undone.</p>
+      <button class="btn-bad btn-block" data-action="new-day-open">🗓 Start new day</button>
+    </div>
+  `;
+}
+
+function renderSummaryTab() {
+  const rev = computeRevenueByMethod();
+  const tally = computeItemsSold();
+  const pendingCount = state.orders.filter(o=>o.status==='pending').length;
+  const cancelledCount = state.orders.filter(o=>o.status==='cancelled').length;
+  const tallyRows = Object.entries(tally).map(([name,qty]) => `<div class="tally-row"><span>${escapeHtml(name)}</span><span>${qty}</span></div>`).join('') || `<p class="empty">No sales yet.</p>`;
+  return `
+    <div class="stat-card-lg"><div class="stat-num-lg">₹${formatINR(rev.total)}</div><div class="stat-label">Total revenue</div></div>
+    <div class="stat-grid-2">
+      <div class="stat-card"><div class="stat-num">₹${formatINR(rev.cash)}</div><div class="stat-label">💵 Cash</div></div>
+      <div class="stat-card"><div class="stat-num">₹${formatINR(rev.online)}</div><div class="stat-label">📱 Online</div></div>
+    </div>
+    <div class="stat-grid-2">
+      <div class="stat-card"><div class="stat-num">${pendingCount}</div><div class="stat-label">Awaiting payment</div></div>
+      <div class="stat-card"><div class="stat-num">${cancelledCount}</div><div class="stat-label">Cancelled</div></div>
+    </div>
+    <h3 style="font-family:'Teko',sans-serif;font-size:1.3rem;color:var(--chalk-green);">Items sold</h3>
+    <div class="tally-list">${tallyRows}</div>
+  `;
+}
+
+function renderHistoryTab() {
+  if (!state.archive.length) return `<p class="empty">No past days saved yet. Use "Start new day" once today's selling is done.</p>`;
+  const rows = [...state.archive].reverse().map(d => `
+    <div class="history-card">
+      <div class="history-top"><strong>${escapeHtml(d.dayLabel)}</strong><span class="muted">${new Date(d.closedAt).toLocaleDateString()}</span></div>
+      <div class="history-stats"><span>₹${formatINR(d.revenue)} total</span><span>💵 ₹${formatINR(d.revenueCash||0)}</span><span>📱 ₹${formatINR(d.revenueOnline||0)}</span><span>${d.orderCount} orders</span></div>
+    </div>`).join('');
+  return `<div class="history-list">${rows}</div>`;
+}
+
+function renderSellerView() {
+  const tabBtn = (key, label) => `<button class="tab-btn ${state.sellerTab===key?'active':''}" data-action="seller-tab" data-tab="${key}">${label}</button>`;
+  let body = '';
+  if (state.sellerTab === 'queue') body = renderQueueTab();
+  else if (state.sellerTab === 'setup') body = renderSetupTab();
+  else if (state.sellerTab === 'summary') body = renderSummaryTab();
+  else if (state.sellerTab === 'history') body = renderHistoryTab();
+
+  return `
+  <section class="seller-wrap">
+    <div class="seller-head"><h2 style="font-family:'Teko',sans-serif;font-size:1.8rem;margin:0;color:var(--chalk-green);">Counter</h2><button class="link-btn" data-action="seller-logout">Log out</button></div>
+    <div class="tabs">${tabBtn('queue','Queue')}${tabBtn('setup','Day setup')}${tabBtn('summary','Summary')}${tabBtn('history','History')}</div>
+    <div class="tab-body">${body}</div>
+  </section>`;
+}
+
+function renderModal() {
+  if (state.modal === 'newday') {
+    return `
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <h3 style="margin-top:0;">Start a new day?</h3>
+        <p class="small">This saves today's totals to History, resets stock to your Day setup numbers, and clears the order queue. This can't be undone.</p>
+        <div class="modal-actions">
+          <button class="btn-secondary" data-action="modal-cancel">Cancel</button>
+          <button class="btn-bad" data-action="modal-confirm-newday">Yes, start new day</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+/* ---------------- Render dispatch ---------------- */
+function render() {
+  kickPhotoFetches();
+  const app = document.getElementById('app');
+  if (state.view === 'menu') app.innerHTML = renderMenuView();
+  else if (state.view === 'token') app.innerHTML = renderTokenView();
+  else if (state.view === 'pin') app.innerHTML = renderPinView();
+  else if (state.view === 'seller') app.innerHTML = renderSellerView();
+
+  document.getElementById('dayLabel').textContent = state.config.dayLabel || 'Canteen';
+  const link = document.getElementById('counterLink');
+  link.style.display = (state.view==='seller' || state.view==='pin') ? 'none' : 'inline-block';
+
+  document.getElementById('modalRoot').innerHTML = state.modal ? renderModal() : '';
+}
+
+/* ---------------- Event delegation ---------------- */
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  switch (action) {
+    case 'cart-inc': incCart(id); break;
+    case 'cart-dec': decCart(id); break;
+    case 'set-method': state.payMethod = btn.dataset.method; render(); break;
+    case 'place-order': await placeOrder(); break;
+    case 'goto-counter': state.view='pin'; state.pinError=''; render(); break;
+    case 'goto-menu': state.view='menu'; state.activeOrderNum=null; render(); break;
+    case 'pin-submit': await submitPin(); break;
+    case 'seller-tab': state.sellerTab = btn.dataset.tab; state.formError=''; render(); break;
+    case 'order-confirm': await confirmOrder(Number(id)); break;
+    case 'order-cancel': await cancelOrderAction(Number(id)); break;
+    case 'order-serve': await markServed(Number(id)); break;
+    case 'toggle-walkin': state.walkinOpen = !state.walkinOpen; state.formError=''; render(); break;
+    case 'walkin-inc': walkinInc(id); break;
+    case 'walkin-dec': walkinDec(id); break;
+    case 'walkin-add': await addWalkin(); break;
+    case 'menu-add-row': addMenuRow(); break;
+    case 'menu-remove-row': removeMenuRow(id); break;
+    case 'day-setup-save': await saveDaySetup(); break;
+    case 'new-day-open': state.modal='newday'; render(); break;
+    case 'modal-cancel': state.modal=null; render(); break;
+    case 'modal-confirm-newday': await startNewDay(); break;
+    case 'toggle-store': await toggleStoreOpen(); break;
+    case 'seller-logout': state.sellerAuthed=false; state.view='menu'; render(); break;
+  }
+});
+document.addEventListener('change', async (e) => {
+  const el = e.target;
+  if (el.matches && el.matches('input[type="file"][data-photo-id]')) {
+    const id = el.dataset.photoId;
+    const file = el.files && el.files[0];
+    if (file) await handlePhotoUpload(id, file);
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target && e.target.id === 'pinInput') submitPin();
+});
+</script>
+ </body>
+</html>
